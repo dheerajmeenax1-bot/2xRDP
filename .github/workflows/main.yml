@@ -1,4 +1,4 @@
-name: DEVXRDP – RDP + Tailscale (5 Hours)
+name: DEVXRDP – RDP + Tailscale (10 Hours)
 
 on:
   workflow_dispatch:
@@ -18,7 +18,7 @@ concurrency:
 jobs:
   rdp:
     runs-on: windows-latest
-    timeout-minutes: 300   # EXACT 5 HOURS
+    timeout-minutes: 1000   # EXACT 5 HOURS
 
     env:
       # ===== RDP CREDENTIALS =====
@@ -82,13 +82,13 @@ jobs:
 
           Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
 
-      - name: KEEP ALIVE (5 HOURS CONTINUOUS)
+      - name: KEEP ALIVE (10 HOURS CONTINUOUS)
         run: |
-          $end = (Get-Date).AddHours(5)
+          $end = (Get-Date).AddHours(10)
           while ((Get-Date) -lt $end) {
             Start-Sleep -Seconds 60
           }
 
       - name: Finished
-        run: echo "DEVXRDP session ended after 5 hours"
+        run: echo "DEVXRDP session ended after 10 hours"
         
