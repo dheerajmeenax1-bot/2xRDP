@@ -18,14 +18,11 @@ concurrency:
 jobs:
   rdp:
     runs-on: windows-latest
-    timeout-minutes: 1000   # EXACT 5 HOURS
+    timeout-minutes: 650
 
     env:
-      # ===== RDP CREDENTIALS =====
       RDP_USER: DEVXRDP
       RDP_PASS: Rdp!9Xq#2025
-
-      # ===== FIXED TAILSCALE NAME =====
       TS_HOSTNAME: DEVXRDP
 
     steps:
@@ -60,6 +57,7 @@ jobs:
           Write-Host " RDP NAME : DEVXRDP"
           Write-Host " RDP IP   : $ip"
           Write-Host " USER     : DEVXRDP"
+          Write-Host " PASS     : Rdp!9Xq#2025"
           Write-Host "================================="
 
       - name: Enable RDP
@@ -82,13 +80,59 @@ jobs:
 
           Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
 
+      - name: Disable RDP Idle & Session Timeouts
+        run: |
+          $rdpPath = "HKLM:\SYSTEM\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp"
+
+          # 0 = No timeout (never disconnect)
+          Set-ItemProperty -Path $rdpPath -Name "MaxIdleTime"          -Value 0
+          Set-ItemProperty -Path $rdpPath -Name "MaxConnectionTime"    -Value 0
+          Set-ItemProperty -Path $rdpPath -Name "MaxDisconnectionTime" -Value 0
+          Set-ItemProperty -Path $rdpPath -Name "fResetBroken"         -Value 0
+
+          # Group Policy overrides via registry
+          $gpPath = "HKLM:\SOFTWARE\Policies\Microsoft\Windows NT\Terminal Services"
+          if (-not (Test-Path $gpPath)) { New-Item -Path $gpPath -Force | Out-Null }
+
+          Set-ItemProperty -Path $gpPath -Name "MaxIdleTime"          -Value 0
+          Set-ItemProperty -Path $gpPath -Name "MaxConnectionTime"    -Value 0
+          Set-ItemProperty -Path $gpPath -Name "MaxDisconnectionTime" -Value 0
+          Set-ItemProperty -Path $gpPath -Name "fResetBroken"         -Value 0
+          Set-ItemProperty -Path $gpPath -Name "fDisableCam"          -Value 0
+
+          Write-Host "RDP timeouts disabled successfully."
+
+      - name: Disable Screen Saver & Sleep
+        run: |
+          # Disable screen saver
+          Set-ItemProperty -Path "HKCU:\Control Panel\Desktop" -Name "ScreenSaveActive" -Value "0"
+          Set-ItemProperty -Path "HKCU:\Control Panel\Desktop" -Name "ScreenSaverIsSecure" -Value "0"
+
+          # Disable sleep/hibernate
+          powercfg /change standby-timeout-ac 0
+          powercfg /change hibernate-timeout-ac 0
+          powercfg /change monitor-timeout-ac 0
+
+          Write-Host "Sleep and screen saver disabled."
+
       - name: KEEP ALIVE (10 HOURS CONTINUOUS)
         run: |
           $end = (Get-Date).AddHours(10)
+          Write-Host "Session will run until: $end"
+
+          $wsh = New-Object -ComObject WScript.Shell
+
           while ((Get-Date) -lt $end) {
+            $remaining = $end - (Get-Date)
+            Write-Host "Remaining: $([math]::Round($remaining.TotalMinutes, 1)) minutes"
+
+            # Simulate small activity to prevent idle disconnect
+            $wsh.SendKeys("{SCROLLLOCK}")
+            Start-Sleep -Milliseconds 100
+            $wsh.SendKeys("{SCROLLLOCK}")
+
             Start-Sleep -Seconds 60
           }
 
       - name: Finished
         run: echo "DEVXRDP session ended after 10 hours"
-        
